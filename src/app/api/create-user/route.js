@@ -4,7 +4,8 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import generateHash from '../../utils/generateHash.ts';
 import createDB from '../../utils/createDB.ts'
-import { decryptText, encryptText } from '../../utils/crypto.ts';
+import { encryptText } from '../../utils/crypto.ts';
+import compareHash from '../../utils/compareHash.ts';
 
 export async function POST(req) {
     const dbPath = path.resolve(process.cwd(), 'users.db');
@@ -32,8 +33,8 @@ export async function POST(req) {
           );
     }
 
-    const nameEncrypted = await encryptText(name);
-    const nameHash = await generateHash(nameHash);
+    const nameEncrypted = await encryptText(name, passwordHash);
+    const nameHash = await generateHash(name);
 
     const localDb = new Database(dbPath);
     const stmt = localDb.prepare('INSERT INTO users (userName, userPasswordHash, userNameHash) VALUES (?, ?, ?);');
@@ -49,14 +50,12 @@ export async function POST(req) {
 async function isSameNameBeingUsed(targetName, dbPath){
     const localDb = new Database(dbPath);
     try {
-        const stmt = localDb.prepare(`SELECT userName FROM users`);
-        const names = stmt.all();
+        const stmt = localDb.prepare(`SELECT userNameHash FROM users`);
+        const nameHashes = stmt.all();
 
-        const encryptedTargetName = await encryptText(targetName); // Criptografa o nome alvo
-
-        for (const nameEncrypted of names) {
+        for (const nameHash of nameHashes) {
             // Compara o nome alvo criptografado com os nomes criptografados no banco
-            if (encryptedTargetName === nameEncrypted.userName) {
+            if (await compareHash(targetName, nameHash.userNameHash)) {
                 localDb.close();
                 return true;
             }

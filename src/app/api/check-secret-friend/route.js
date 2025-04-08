@@ -4,7 +4,7 @@ import Database from 'better-sqlite3';
 import path from 'path'
 import compareHash from '../../utils/compareHash.ts';
 import createDB from '../../utils/createDB.ts'
-import { decryptText, encryptText } from '../../utils/crypto.ts';
+import { decryptText } from '../../utils/crypto.ts';
 
 export async function POST(req) {
     const dbPath = path.resolve(process.cwd(), 'users.db');
@@ -55,6 +55,7 @@ export async function POST(req) {
 
     const userInfo = stmt1.get(nameEncrypted);
     let dbUserId, dbUserNameEncrypted, dbUserPassHash;
+    console.info(userInfo);
 
     if (userInfo) {
         dbUserId = userInfo.userId;
@@ -70,7 +71,7 @@ export async function POST(req) {
           );
     }
 
-    const dbUserNameDecrypted = decryptText(dbUserNameEncrypted)
+    const dbUserNameDecrypted = await decryptText(dbUserNameEncrypted, dbUserPassHash);
 
     if(await compareHash(password, dbUserPassHash)){
         const connectResult = connectUserToOtherUser(dbUserId, dbPath);
@@ -107,9 +108,7 @@ export async function POST(req) {
         );
         let secretFriend = stmt2.get(dbUserId, dbUserId);
 
-        console.log(secretFriend);
-
-        secretFriend = decryptText(secretFriend.associatedUserName);
+        secretFriend = await decryptText(secretFriend.associatedUserName);
 
         console.log(secretFriend);
 
@@ -188,14 +187,13 @@ function isUserConnected(userId, dbPath){
 async function getUserEncryptedByName(targetName, dbPath){
     const localDb = new Database(dbPath);
     
-    const stmt = localDb.prepare(`SELECT userName FROM users`);
-    const names = stmt.all();
-    const encryptedTargetName = await encryptText(targetName);
+    const stmt = localDb.prepare(`SELECT userNameHash, userName FROM users`);
+    const users = stmt.all();
     
-    for(const nameEncrypted of names){
-        if( encryptedTargetName == nameEncrypted){
+    for(const user of users){
+        if(await compareHash(targetName, user.userNameHash)){
             localDb.close();
-            return nameEncrypted.userName;
+            return user.userName;
         }
     }
 

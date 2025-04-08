@@ -6,6 +6,7 @@ import { useState } from "react"
 export default function Home() {
   const [nome, setNome] = useState('');
   const [senha, setSenha] = useState('');
+  const [secretFriend, setSecretFriend] = useState('');
   const [showPopup, setShowPopup] = useState(false);
   const [popupMessage, setPopupMessage] = useState('');
 
@@ -21,7 +22,7 @@ export default function Home() {
         apiFetch = "/api/create-user";
 
       } else if (acao === "checar_amigo") {
-        setPopupMessage(`🤔 Seu amigo secreto é o "${result.secretFriend}"! shhh`);
+        setPopupMessage(`🤔 Seu amigo secreto é o "${secretFriend}"! shhh`);
         apiFetch = "/api/check-secret-friend";
       }
 
@@ -34,12 +35,15 @@ export default function Home() {
       });
       const result = await response.json();
       
-      console.log(!result);
+      console.log(result);
+
 
       if (!response.ok || !result) {
         setPopupMessage(`❌ Erro: ${result.error}`);
+      } else if (acao === "checar_amigo") {
+        setSecretFriend(secretFriend);
       }
-
+      
       setShowPopup(true);
     } catch (e) {
       console.error(e.message);

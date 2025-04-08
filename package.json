@@ -11,9 +11,10 @@
   "dependencies": {
     "bcrypt": "^5.1.1",
     "better-sqlite3": "^11.9.1",
-    "next": "15.2.4",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "lightningcss-win32-x64-msvc": "^1.29.3",
+    "next": "^15.2.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
