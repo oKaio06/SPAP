@@ -1,14 +1,12 @@
 'use server'
 
-import Database from 'better-sqlite3';
-import path from 'path';
-import createDB from '../../utils/createDB.ts'
 import compareHash from '../../utils/compareHash.ts'
+import { neon } from '@neondatabase/serverless';
+
+if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL not set");
+const sql = neon(process.env.DATABASE_URL);
 
 export async function POST(req) {
-    const dbPath = path.resolve(process.cwd(), 'users.db');
-
-    createDB(dbPath);
 
     if(req.method != 'POST'){
         return new Response(
@@ -31,12 +29,10 @@ export async function POST(req) {
     }
 
     
-    const localDb = new Database(dbPath);
-    const nameEncrypted = await getUserEncryptedByName(name, localDb);
+    const nameEncrypted = await getUserEncryptedByName(name);
 
-    const deleteResponse = localDb.prepare('DELETE FROM users WHERE userName = ?;').run(nameEncrypted);
+    const deleteResponse = await sql`DELETE FROM "users" WHERE "userName" = ${nameEncrypted};`;
     console.log(`Resposta ao deletar ${name} (${nameEncrypted}): ${deleteResponse.changes}`);
-    localDb.close();
     
     return new Response(
         JSON.stringify({ message: "usuário removido" }),
@@ -44,10 +40,9 @@ export async function POST(req) {
       );
 }
 
-async function getUserEncryptedByName(targetName, localDb){
+async function getUserEncryptedByName(targetName){
     
-    const stmt = localDb.prepare(`SELECT userNameHash, userName FROM users`);
-    const users = stmt.all();
+    const users = await sql`SELECT u."userNameHash", u."userName" FROM "users" u`;
     
     for(const user of users){
         if(await compareHash(targetName, user.userNameHash)){

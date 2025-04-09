@@ -1,16 +1,14 @@
 'use server'
 
-import Database from 'better-sqlite3';
-import path from 'path'
 import compareHash from '../../utils/compareHash.ts';
-import createDB from '../../utils/createDB.ts'
 import { decryptText } from '../../utils/crypto.ts';
 import generateHash from '../../utils/generateHash.ts';
+import { neon } from '@neondatabase/serverless';
+
+if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL not set");
+const sql = neon(process.env.DATABASE_URL);
 
 export async function POST(req) {
-    const dbPath = path.resolve(process.cwd(), 'users.db');
-
-    createDB(dbPath);
 
     if(req.method != 'POST'){
         return new Response(
@@ -20,12 +18,10 @@ export async function POST(req) {
           );
     }
     const body = await req.json();
-
     const {name, password} = body;
 
-    const localDb = new Database(dbPath);
 
-    const usersIdsResult = localDb.prepare('SELECT userId FROM users').all();
+    const usersIdsResult = await sql`SELECT "userId" FROM "users"`;
     const usersIds = usersIdsResult.map(row => row.userId);
 
     if (usersIds.length < 7){
@@ -37,7 +33,6 @@ export async function POST(req) {
                 { status: 200, headers: { 'Content-Type': 'application/json' } }
               );
         }
-        localDb.close();
         return new Response(
             JSON.stringify({error: "Usuários insuficientes, aguarde até que 7 pessoas entrem",
                  message: "não foi possível checar o amigo secreto, usuário insuficientes" }),
@@ -45,10 +40,9 @@ export async function POST(req) {
           );
     }
 
-    const nameEncrypted = await getUserEncryptedByName(name, localDb);
+    const nameEncrypted = await getUserEncryptedByName(name);
 
     if (nameEncrypted == null){
-        localDb.close();
         return new Response(
             JSON.stringify({error: "Usuário não encontrado",
                  message: "não foi possível encontrar o usuário solicitado" }),
@@ -56,22 +50,20 @@ export async function POST(req) {
           );
     }
 
-    const stmt1 = localDb.prepare(`
-        SELECT userId, userName, userPasswordHash 
-        FROM users
-        WHERE userName == ?;`
-    );
+    const userInfo = await sql`
+        SELECT "userId", "userName", "userPasswordHash" 
+        FROM "users"
+        WHERE "userName" = ${nameEncrypted};`
+    ;
 
-    const userInfo = stmt1.get(nameEncrypted);
     let dbUserId, dbUserNameEncrypted, dbUserPassHash;
 
-    if (userInfo) {
-        dbUserId = userInfo.userId;
-        dbUserNameEncrypted = userInfo.userName;
-        dbUserPassHash = userInfo.userPasswordHash;
+    if (userInfo.length > 0 || userInfo[0]) {
+        dbUserId = userInfo[0].userId;
+        dbUserNameEncrypted = userInfo[0].userName;
+        dbUserPassHash = userInfo[0].userPasswordHash;
     }    
     else{
-        localDb.close();
         return new Response(
             JSON.stringify({error: "Usuário não encontrado",
                  message: "não foi possível encontrar o usuário solicitado" }),
@@ -82,7 +74,7 @@ export async function POST(req) {
     const dbUserNameDecrypted = await decryptText(dbUserNameEncrypted);
 
     if(await compareHash(password, dbUserPassHash)){
-        const connectResult = connectUserToOtherUser(dbUserId, localDb);
+        const connectResult = await connectUserToOtherUser(dbUserId);
         switch (connectResult){
             case 0:
                 console.info(`usuario ${dbUserNameDecrypted} já está conectado a um outro usuario, obtendo usuario...`);
@@ -91,7 +83,6 @@ export async function POST(req) {
                 console.info(`usuario ${dbUserNameDecrypted} foi conectado a outro usuario com sucesso`);
                 break;
             case 2:
-                localDb.close();
                 return new Response(
                     JSON.stringify({error: "Sem usuários para se conectar",
                          message: `não foi possivel conectar o usuário ${dbUserNameDecrypted} a outro usuário, sem usuários disponíveis` }),
@@ -99,16 +90,14 @@ export async function POST(req) {
                   );
         }
 
-        const secretFriendQuery = localDb.prepare(
-            `SELECT u.userName AS associatedUserName
-            FROM secret_friend_assignments sfa
-            JOIN users u ON sfa.receiverId = u.userId
-            WHERE sfa.giverId = ?`
-        ).get(dbUserId);
-        
-        let secretFriend = await decryptText(secretFriendQuery.associatedUserName);
+        const secretFriendQuery = await sql`
+            SELECT u."userName" AS "associatedUserName"
+            FROM "secret_friend_assignments" sfa
+            JOIN "users" u ON sfa."receiverId" = u."userId"
+            WHERE sfa."giverId" = ${dbUserId}`
+        ;
 
-        localDb.close();
+        let secretFriend = await decryptText(secretFriendQuery[0].associatedUserName);
 
         if (name === "Kaio"){
             return new Response(
@@ -127,7 +116,6 @@ export async function POST(req) {
           );
     }
     else{
-        localDb.close();
         return new Response(
             JSON.stringify({error: "Senha inválida",
                  message: "usuário tentou entrar com a senha errada ;]" }),
@@ -137,17 +125,17 @@ export async function POST(req) {
     
 }
 
-function connectUserToOtherUser(userId, localdb){
-    if(isUserConnected(userId, localdb)){
+async function connectUserToOtherUser(userId){
+    if(await isUserConnected(userId)){
         return 0;
     }
 
-    const availableUsersResult = localdb.prepare(`
-        SELECT userId from users
-        WHERE userId <> ?
-        AND userId NOT IN (
-        SELECT receiverId FROM secret_friend_assignments
-        )`).all(userId);
+    const availableUsersResult = await sql`
+        SELECT "userId" from "users"
+        WHERE "userId" <> ${userId}
+        AND "userId" NOT IN (
+        SELECT "receiverId" FROM "secret_friend_assignments")`
+        ;
 
     const availableUserIds = availableUsersResult.map(row => row.userId);
 
@@ -158,27 +146,24 @@ function connectUserToOtherUser(userId, localdb){
     const randomIndex = Math.floor(Math.random() * availableUserIds.length);
     const receiverUserId = availableUserIds[randomIndex];
 
-    localdb.prepare(`
-      INSERT INTO secret_friend_assignments (giverId, receiverId)
-      VALUES (?, ?)
-    `).run(userId, receiverUserId);
+    await sql`
+      INSERT INTO "secret_friend_assignments" ("giverId", "receiverId")
+      VALUES (${userId}, ${receiverUserId})`
+      ;
 
     return 1;
 }
 
-function isUserConnected(userId, localdb){
-
-    const alreadyAssigned = localdb
-    .prepare(`SELECT 1 FROM secret_friend_assignments WHERE giverId = ?`)
-    .get(userId);
-
-    return alreadyAssigned;
+async function isUserConnected(userId){
+    const alreadyAssigned = await sql`
+        SELECT 1 FROM "secret_friend_assignments"
+        WHERE "giverId" = ${userId} LIMIT 1`;
+    return alreadyAssigned.length > 0;
 }
 
-async function getUserEncryptedByName(targetName, localDb){
+async function getUserEncryptedByName(targetName){
     
-    const stmt = localDb.prepare(`SELECT userNameHash, userName FROM users`);
-    const users = stmt.all();
+    const users = await sql`SELECT "userNameHash", "userName" FROM "users"`;
     
     for(const user of users){
         if(await compareHash(targetName, user.userNameHash)){

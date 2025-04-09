@@ -9,9 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.0",
     "bcrypt": "^5.1.1",
-    "better-sqlite3": "^11.9.1",
-    "lightningcss-linux-x64-gnu": "^1.29.3",
+    "lightningcss": "^1.29.3",
     "next": "^15.2.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
@@ -22,6 +22,7 @@
     "@types/bcrypt": "^5.0.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.17.30",
+    "@types/pg": "^8.11.11",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
