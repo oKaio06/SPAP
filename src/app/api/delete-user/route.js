@@ -3,7 +3,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import createDB from '../../utils/createDB.ts'
-import { encryptText } from '../../utils/crypto.ts';
 import compareHash from '../../utils/compareHash.ts'
 
 export async function POST(req) {
@@ -34,7 +33,7 @@ export async function POST(req) {
     
     const localDb = new Database(dbPath);
     const nameEncrypted = await getUserEncryptedByName(name, localDb);
-    
+
     const deleteResponse = localDb.prepare('DELETE FROM users WHERE userName = ?;').run(nameEncrypted);
     console.log(`Resposta ao deletar ${name} (${nameEncrypted}): ${deleteResponse.changes}`);
     localDb.close();
