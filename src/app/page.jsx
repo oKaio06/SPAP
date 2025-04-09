@@ -39,7 +39,7 @@ export default function Home() {
       if (!response.ok || !result) {
         setPopupMessage(`❌ Erro: ${result.error}`);
       } 
-      else if (result.adminEnabled){
+      else if (result.adminEnabled && !(adminPanel)){
         setAdminPanel(true);
         setAdminKey(result.key);
         setPopupMessage(`🔨 admin habilitado`);
