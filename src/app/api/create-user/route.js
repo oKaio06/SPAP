@@ -44,7 +44,7 @@ export async function POST(req) {
     const nameHash = await generateHash(name);
 
     
-    const stmt = await sql`INSERT INTO "users" ("userName", "userPasswordHash", "userNameHash") VALUES 
+    await sql`INSERT INTO "users" ("userName", "userPasswordHash", "userNameHash") VALUES 
         (${nameEncrypted}, ${passwordHash}, ${nameHash});`
     ;
 
