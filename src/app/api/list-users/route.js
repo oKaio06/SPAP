@@ -1,14 +1,12 @@
 'use server'
 
-import Database from 'better-sqlite3';
-import path from 'path';
-import createDB from '../../utils/createDB.ts'
 import { decryptText } from '../../utils/crypto.ts';
+import { neon } from '@neondatabase/serverless';
+
+if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL not set");
+const sql = neon(process.env.DATABASE_URL);
 
 export async function GET(req) {
-    const dbPath = path.resolve(process.cwd(), 'users.db');
-
-    createDB(dbPath);
 
     if(req.method != 'GET'){
         return new Response(
@@ -18,15 +16,13 @@ export async function GET(req) {
           );
     }
 
-    const localDb = new Database(dbPath);
-    let usersEncrypted = localDb.prepare('SELECT userName FROM users;').all();
+    let usersEncrypted = await sql`SELECT "userName" FROM "users" ;`;
     let usersDecrypted = [];
 
     for(const user of usersEncrypted){
         const decryptedName = await decryptText(user.userName);
         usersDecrypted.push(decryptedName);
     }
-    localDb.close();
     
     return new Response(
         JSON.stringify({ users: usersDecrypted,

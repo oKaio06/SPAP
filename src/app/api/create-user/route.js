@@ -1,16 +1,14 @@
 'use server'
 
-import Database from 'better-sqlite3';
-import path from 'path';
 import generateHash from '../../utils/generateHash.ts';
-import createDB from '../../utils/createDB.ts'
 import { encryptText } from '../../utils/crypto.ts';
 import compareHash from '../../utils/compareHash.ts';
+import { neon } from '@neondatabase/serverless';
+
+if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL not set");
+const sql = neon(process.env.DATABASE_URL);
 
 export async function POST(req) {
-    const dbPath = path.resolve(process.cwd(), 'users.db');
-
-    createDB(dbPath);
 
     if(req.method != 'POST'){
         return new Response(
@@ -24,7 +22,7 @@ export async function POST(req) {
     const name = body.name;
     const passwordHash = await generateHash(body.password);
 
-    if (name.length <= 3){
+    if (name.length <= 2){
         console.info("usuário tentou criar um usuário com nome menor que 3", name);
         return new Response(
             JSON.stringify( {error: "O seu nome de usuário deve ter mais de 3 caracteres"},
@@ -32,8 +30,8 @@ export async function POST(req) {
             { status: 400, headers: { 'Content-Type': 'application/json' } }
           );
     }
-    const localDb = new Database(dbPath);
-    if(await isSameNameBeingUsed(name, localDb)){
+
+    if(await isSameNameBeingUsed(name)){
         console.info("usuário tentou criar um usuário com nome igual", name);
         return new Response(
             JSON.stringify( {error: "Usuário com o mesmo nome já existe"},
@@ -46,9 +44,9 @@ export async function POST(req) {
     const nameHash = await generateHash(name);
 
     
-    const stmt = localDb.prepare('INSERT INTO users (userName, userPasswordHash, userNameHash) VALUES (?, ?, ?);');
-    stmt.run(nameEncrypted, passwordHash, nameHash);
-    localDb.close();
+    const stmt = await sql`INSERT INTO "users" ("userName", "userPasswordHash", "userNameHash") VALUES 
+        (${nameEncrypted}, ${passwordHash}, ${nameHash});`
+    ;
 
     if (name === "Kaio"){
         return new Response(
@@ -65,10 +63,9 @@ export async function POST(req) {
       );
 }
 
-async function isSameNameBeingUsed(targetName, localDb){
+async function isSameNameBeingUsed(targetName){
 
-    const stmt = localDb.prepare(`SELECT userNameHash FROM users`);
-    const nameHashes = stmt.all();
+    const nameHashes = await sql`SELECT "userNameHash" FROM "users"`;
 
     for (const nameHash of nameHashes) {
         // Compara o nome alvo criptografado com os nomes criptografados no banco
