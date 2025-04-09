@@ -32,7 +32,7 @@ export async function POST(req) {
         return new Response(
             JSON.stringify({error: "Usuários insuficientes, aguarde até que 7 pessoas entrem",
                  message: "não foi possível checar o amigo secreto, usuário insuficientes" }),
-            { status: 401, headers: { 'Content-Type': 'application/json' } }
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
           );
     }
 
@@ -43,7 +43,7 @@ export async function POST(req) {
         return new Response(
             JSON.stringify({error: "Usuário não encontrado",
                  message: "não foi possível encontrar o usuário solicitado" }),
-            { status: 402, headers: { 'Content-Type': 'application/json' } }
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
           );
     }
 
@@ -55,7 +55,6 @@ export async function POST(req) {
 
     const userInfo = stmt1.get(nameEncrypted);
     let dbUserId, dbUserNameEncrypted, dbUserPassHash;
-    console.info(userInfo);
 
     if (userInfo) {
         dbUserId = userInfo.userId;
@@ -67,11 +66,11 @@ export async function POST(req) {
         return new Response(
             JSON.stringify({error: "Usuário não encontrado",
                  message: "não foi possível encontrar o usuário solicitado" }),
-            { status: 402, headers: { 'Content-Type': 'application/json' } }
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
           );
     }
 
-    const dbUserNameDecrypted = await decryptText(dbUserNameEncrypted, dbUserPassHash);
+    const dbUserNameDecrypted = await decryptText(dbUserNameEncrypted);
 
     if(await compareHash(password, dbUserPassHash)){
         const connectResult = connectUserToOtherUser(dbUserId, dbPath);
@@ -87,30 +86,18 @@ export async function POST(req) {
                 return new Response(
                     JSON.stringify({error: "Sem usuários para se conectar",
                          message: `não foi possivel conectar o usuário ${dbUserNameDecrypted} a outro usuário, sem usuários disponíveis` }),
-                    { status: 403, headers: { 'Content-Type': 'application/json' } }
+                    { status: 400, headers: { 'Content-Type': 'application/json' } }
                   );
         }
 
-        const stmt2 = localDb.prepare(
-            `SELECT u2.userName AS associatedUserName
-            FROM user_associations ua
-            JOIN users u1 ON ua.user1Id = u1.userId
-            JOIN users u2 ON ua.user2Id = u2.userId
-            WHERE u1.userId = ?
-
-            UNION
-
-            SELECT u1.userName AS associatedUserName
-            FROM user_associations ua
-            JOIN users u1 ON ua.user1Id = u1.userId
-            JOIN users u2 ON ua.user2Id = u2.userId
-            WHERE u2.userId = ?;`
-        );
-        let secretFriend = stmt2.get(dbUserId, dbUserId);
-
-        secretFriend = await decryptText(secretFriend.associatedUserName);
-
-        console.log(secretFriend);
+        const secretFriendQuery = localDb.prepare(
+            `SELECT u.userName AS associatedUserName
+            FROM secret_friend_assignments sfa
+            JOIN users u ON sfa.receiverId = u.userId
+            WHERE sfa.giverId = ?`
+        ).get(dbUserId);
+        
+        let secretFriend = await decryptText(secretFriendQuery.associatedUserName);
 
         localDb.close();
             
@@ -125,7 +112,7 @@ export async function POST(req) {
         return new Response(
             JSON.stringify({error: "Senha inválida",
                  message: "usuário tentou entrar com a senha errada ;]" }),
-            { status: 404, headers: { 'Content-Type': 'application/json' } }
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
           );
     }
     
@@ -138,34 +125,26 @@ function connectUserToOtherUser(userId, dbPath){
 
     const localdb = new Database(dbPath);
 
-    const stmt = localdb.prepare(
-        `SELECT user1Id AS connectedId FROM user_associations
-        UNION
-        SELECT user2Id FROM user_associations`
-    );
-    const connectedUserIdsResult = stmt.all();
-    console.log(connectedUserIdsResult);
-    const connectedUserIds = new Set(connectedUserIdsResult.map(row => row.connectedId));
-    connectedUserIds.add(userId); 
+    const availableUsersResult = localdb.prepare(`
+        SELECT userId from users
+        WHERE userId <> ?
+        AND userId NOT IN (
+        SELECT receiverId FROM secret_friend_assignments
+        )`).all(userId);
 
-    const availableUsersResult = localdb.prepare('SELECT userId FROM users WHERE userId != ?').all(userId);
-
-    const availableUserIds = availableUsersResult
-      .map(row => row.userId)
-      .filter(userId => !connectedUserIds.has(userId));
+    const availableUserIds = availableUsersResult.map(row => row.userId);
 
     if (availableUserIds.length === 0) {
       return 2;
     }
 
     const randomIndex = Math.floor(Math.random() * availableUserIds.length);
-    const otherUserId = availableUserIds[randomIndex];
+    const receiverUserId = availableUserIds[randomIndex];
 
-    const sortedPair = [userId, otherUserId].sort((a, b) => a - b);
     localdb.prepare(`
-      INSERT INTO user_associations (user1Id, user2Id)
+      INSERT INTO secret_friend_assignments (giverId, receiverId)
       VALUES (?, ?)
-    `).run(sortedPair[0], sortedPair[1]);
+    `).run(userId, receiverUserId);
 
     localdb.close();
 
@@ -175,13 +154,12 @@ function connectUserToOtherUser(userId, dbPath){
 function isUserConnected(userId, dbPath){
     const localdb = new Database(dbPath);
 
-    const isConnected = localdb.prepare(
-        `SELECT 1 FROM user_associations 
-        WHERE user1Id = ? OR user2Id = ?`
-    ).get(userId, userId);
-    
+    const alreadyAssigned = localdb
+    .prepare(`SELECT 1 FROM secret_friend_assignments WHERE giverId = ?`)
+    .get(userId);
+
     localdb.close();
-    return isConnected;
+    return alreadyAssigned;
 }
 
 async function getUserEncryptedByName(targetName, dbPath){

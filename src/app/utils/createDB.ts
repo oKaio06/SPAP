@@ -15,14 +15,14 @@ export default async function createDB(dbPath: string) {
             );`
         );
         db.exec(
-            `CREATE TABLE IF NOT EXISTS user_associations (
-            associationId INTEGER PRIMARY KEY AUTOINCREMENT,
-            user1Id INTEGER NOT NULL,
-            user2Id INTEGER NOT NULL,
-            FOREIGN KEY (user1Id) REFERENCES users(userId),
-            FOREIGN KEY (user2Id) REFERENCES users(userId),
-            UNIQUE (user1Id, user2Id), -- Garante que a mesma associação não seja criada duas vezes (na ordem inversa)
-            CHECK (user1Id < user2Id) -- Garante que a ordem dos IDs não importa para a unicidade
+            `CREATE TABLE IF NOT EXISTS secret_friend_assignments (
+          assignmentId INTEGER PRIMARY KEY AUTOINCREMENT,
+          giverId INTEGER NOT NULL,
+          receiverId INTEGER NOT NULL,
+          FOREIGN KEY(giverId) REFERENCES users(userId),
+          FOREIGN KEY(receiverId) REFERENCES users(userId),
+          UNIQUE(giverId),    -- cada usuário só pode ser designado uma vez como doador
+          UNIQUE(receiverId)  -- cada usuário só pode receber uma designação
             );`
         )
     } catch(e){

@@ -24,6 +24,15 @@ export async function POST(req) {
     const name = body.name;
     const passwordHash = await generateHash(body.password);
 
+    if (name.length <= 3){
+        console.info("usuário tentou criar um usuário com nome menor que 3", name);
+        return new Response(
+            JSON.stringify( {error: "O seu nome de usuário deve ter mais de 3 caracteres"},
+                { message: "o nome que o usuario colocou foi muito curto, precisa ter mais de 3 caracteres!" }),
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
+          );
+    }
+
     if(await isSameNameBeingUsed(name, dbPath)){
         console.info("usuário tentou criar um usuário com nome igual", name);
         return new Response(
@@ -33,7 +42,7 @@ export async function POST(req) {
           );
     }
 
-    const nameEncrypted = await encryptText(name, passwordHash);
+    const nameEncrypted = await encryptText(name);
     const nameHash = await generateHash(name);
 
     const localDb = new Database(dbPath);

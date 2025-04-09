@@ -34,14 +34,13 @@ export default function Home() {
         body: JSON.stringify({ name: nome, password: senha })
       });
       const result = await response.json();
-      
-      console.log(result);
-
 
       if (!response.ok || !result) {
         setPopupMessage(`❌ Erro: ${result.error}`);
-      } else if (acao === "checar_amigo") {
-        setSecretFriend(secretFriend);
+      } 
+
+      if (acao === "checar_amigo") {
+        setPopupMessage(`🤔 Seu amigo secreto éééé o "${result.secretFriend}"! shhh`);
       }
       
       setShowPopup(true);
