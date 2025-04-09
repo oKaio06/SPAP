@@ -116,7 +116,7 @@ export default function Home() {
       <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
         <h2>made with luv by kaio :]</h2>
         {showPopup && (
-          <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-700 rounded-t-lg shadow-md p-6 animate-slide-up">
+          <div className="fixed bottom-0 left-0 w-full bg-[#171717] border-t border-gray-700 rounded-t-lg shadow-md p-6 animate-slide-up">
             <div className="flex justify-end">
               <button onClick={closePopup} className="text-gray-500 hover:text-gray-700 focus:outline-none">
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
