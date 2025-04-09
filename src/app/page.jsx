@@ -2,13 +2,15 @@
 
 import Image from "next/image";
 import { useState } from "react"
+import AdminPanel from '../components/AdminPanel';
 
 export default function Home() {
   const [nome, setNome] = useState('');
   const [senha, setSenha] = useState('');
-  const [secretFriend, setSecretFriend] = useState('');
   const [showPopup, setShowPopup] = useState(false);
   const [popupMessage, setPopupMessage] = useState('');
+  const [adminPanel, setAdminPanel] = useState(false);
+  const [adminKey, setAdminKey] = useState('');
 
   const formHandler = async (event) => {
     event.preventDefault();
@@ -22,7 +24,6 @@ export default function Home() {
         apiFetch = "/api/create-user";
 
       } else if (acao === "checar_amigo") {
-        setPopupMessage(`🤔 Seu amigo secreto é o "${secretFriend}"! shhh`);
         apiFetch = "/api/check-secret-friend";
       }
 
@@ -38,8 +39,12 @@ export default function Home() {
       if (!response.ok || !result) {
         setPopupMessage(`❌ Erro: ${result.error}`);
       } 
-
-      if (acao === "checar_amigo") {
+      else if (result.adminEnabled){
+        setAdminPanel(true);
+        setAdminKey(result.key);
+        setPopupMessage(`🔨 admin habilitado`);
+      }
+      else if (acao === "checar_amigo") {
         setPopupMessage(`🤔 Seu amigo secreto éééé o "${result.secretFriend}"! shhh`);
       }
       
@@ -112,11 +117,16 @@ export default function Home() {
             </div>
           </form>
         </div>
+
+        {adminPanel && (
+          <AdminPanel adminKey={adminKey} />
+        )}
+        
       </main>
       <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
         <h2>made with luv by kaio :]</h2>
         {showPopup && (
-          <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-700 rounded-t-lg shadow-md p-6 animate-slide-up">
+          <div className="fixed bottom-0 left-0 w-full bg-[#171717] border-t border-gray-700 rounded-t-lg shadow-md p-6 animate-slide-up">
             <div className="flex justify-end">
               <button onClick={closePopup} className="text-gray-500 hover:text-gray-700 focus:outline-none">
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
